@@ -1,0 +1,154 @@
+// Suspicious external inbox forwarding rules
+// Data source: Microsoft Sentinel OfficeActivity (Exchange)
+//
+// Replace the example internal domains before operational use.
+// Keep all domain and allowlist entries lowercase.
+
+let QueryPeriod = 1d;
+let InternalDomains = dynamic([
+    "contoso.com",
+    "contoso.onmicrosoft.com"
+]);
+
+// Prefer mailbox-to-target pairs for narrowly scoped exceptions.
+// Format: "mailbox@internal-domain|approved@external-domain"
+let AllowedMailboxTargetPairs = dynamic([]);
+
+// Use only when the destination is approved for every mailbox.
+let AllowedForwardingAddresses = dynamic([]);
+
+// Use only for stable, centrally managed rule names.
+let AllowedRuleNames = dynamic([]);
+
+OfficeActivity
+| where TimeGenerated > ago(QueryPeriod)
+| where OfficeWorkload =~ "Exchange"
+| where Operation in~ (
+    "New-InboxRule",
+    "Set-InboxRule",
+    "UpdateInboxRules"
+)
+| where ResultStatus in~ (
+    "True",
+    "Succeeded",
+    "Success"
+)
+| where Parameters has_any (
+    "ForwardTo",
+    "RedirectTo",
+    "ForwardAsAttachmentTo"
+)
+| extend ParsedParameters = todynamic(Parameters)
+| mv-apply Parameter = ParsedParameters on (
+    summarize ParameterBag = make_bag(
+        bag_pack(
+            tostring(Parameter.Name),
+            tostring(Parameter.Value)
+        )
+    )
+)
+| extend
+    RuleName = iff(
+        isnotempty(tostring(ParameterBag.Name)),
+        tostring(ParameterBag.Name),
+        tostring(ParameterBag.Identity)
+    ),
+    Mailbox = tolower(
+        iff(
+            isnotempty(tostring(ParameterBag.Mailbox)),
+            tostring(ParameterBag.Mailbox),
+            UserId
+        )
+    ),
+    ForwardTo = tostring(ParameterBag.ForwardTo),
+    RedirectTo = tostring(ParameterBag.RedirectTo),
+    ForwardAsAttachmentTo =
+        tostring(ParameterBag.ForwardAsAttachmentTo)
+| extend ActionTargets = pack_array(
+    iff(
+        isnotempty(ForwardTo),
+        strcat("ForwardTo|", ForwardTo),
+        ""
+    ),
+    iff(
+        isnotempty(RedirectTo),
+        strcat("RedirectTo|", RedirectTo),
+        ""
+    ),
+    iff(
+        isnotempty(ForwardAsAttachmentTo),
+        strcat(
+            "ForwardAsAttachmentTo|",
+            ForwardAsAttachmentTo
+        ),
+        ""
+    )
+)
+| mv-expand ActionTarget = ActionTargets to typeof(string)
+| where isnotempty(ActionTarget)
+| extend
+    ForwardingAction =
+        tostring(split(ActionTarget, "|")[0]),
+    RawForwardingTarget =
+        tostring(split(ActionTarget, "|")[1])
+| extend TargetAddresses = extract_all(
+    @"(?i)([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z0-9-]{2,63})",
+    RawForwardingTarget
+)
+| mv-expand TargetAddress = TargetAddresses to typeof(string)
+| extend
+    TargetAddress = tolower(TargetAddress),
+    TargetDomain = tolower(
+        tostring(split(TargetAddress, "@")[1])
+    ),
+    NormalizedRuleName = tolower(RuleName)
+| extend MailboxTargetPair = strcat(
+    Mailbox,
+    "|",
+    TargetAddress
+)
+| where array_index_of(
+    InternalDomains,
+    TargetDomain
+) == -1
+| where array_index_of(
+    AllowedMailboxTargetPairs,
+    MailboxTargetPair
+) == -1
+| where array_index_of(
+    AllowedForwardingAddresses,
+    TargetAddress
+) == -1
+| where array_index_of(
+    AllowedRuleNames,
+    NormalizedRuleName
+) == -1
+| extend
+    AccountName = tostring(split(UserId, "@")[0]),
+    AccountUPNSuffix = tostring(split(UserId, "@")[1])
+| extend ClientIPValues = extract_all(
+    @'\[?(::ffff:)?(?P<IPAddress>(\d+\.\d+\.\d+\.\d+)|[^\]]+)\]?([-:](?P<Port>\d+))?',
+    dynamic(["IPAddress", "Port"]),
+    ClientIP
+)[0]
+| extend
+    SourceIPAddress = tostring(ClientIPValues[0]),
+    SourcePort = tostring(ClientIPValues[1])
+| project
+    TimeGenerated,
+    Operation,
+    UserId,
+    AccountName,
+    AccountUPNSuffix,
+    Mailbox,
+    RuleName,
+    ForwardingAction,
+    TargetAddress,
+    TargetDomain,
+    SourceIPAddress,
+    SourcePort,
+    ClientIP,
+    ResultStatus,
+    OfficeObjectId
+| order by TimeGenerated desc
+
