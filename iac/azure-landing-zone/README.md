@@ -207,11 +207,15 @@ $storageId = az storage account show `
     --query id `
     -o tsv
 
-az monitor diagnostic-settings list `
-    --resource $storageId `
+$diagnosticSettingsUrl = "https://management.azure.com${storageId}/providers/Microsoft.Insights/diagnosticSettings?api-version=2021-05-01-preview"
+
+az rest `
+    --method get `
+    --url $diagnosticSettingsUrl `
     --query "value[].{
         Name:name,
-        Workspace:workspaceId
+        Workspace:properties.workspaceId,
+        MetricsEnabled:properties.metrics[0].enabled
     }" `
     -o table
 ```
@@ -277,3 +281,4 @@ az group delete `
 - [Azure Storage policy reference](https://learn.microsoft.com/azure/storage/common/policy-reference)
 - [Azure Monitor diagnostic-settings policies](https://learn.microsoft.com/azure/azure-monitor/platform/diagnostic-settings-policy-built-in)
 - [Azure landing-zone design areas](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-areas)
+
