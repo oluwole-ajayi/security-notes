@@ -1,0 +1,49 @@
+// Stage 4 — Suspicious OAuth consent grant
+// ATT&CK: T1671 (Cloud Application Integration)
+// Data source: AuditLogs
+// Detects new consent grants containing sensitive delegated permission scopes.
+
+let Lookback = 1d;
+let HighRiskScopes = dynamic([
+    "Mail.Read",
+    "Mail.ReadWrite",
+    "Mail.Send",
+    "Files.Read.All",
+    "Files.ReadWrite.All",
+    "offline_access",
+    "User.Read.All",
+    "Directory.Read.All",
+    "Directory.ReadWrite.All",
+    "full_access_as_user"
+]);
+let ApprovedApplications = dynamic([
+    // Exact lowercase application names, for example: "approved crm"
+]);
+AuditLogs
+| where TimeGenerated >= ago(Lookback)
+| where OperationName =~ "Consent to application"
+| extend
+    ConsentedBy = tolower(tostring(InitiatedBy.user.userPrincipalName)),
+    InitiatingApp = tostring(InitiatedBy.app.displayName),
+    ClientIP = tostring(InitiatedBy.user.ipAddress),
+    CorrelationId = tostring(CorrelationId)
+| mv-expand TargetResource = TargetResources
+| extend
+    ApplicationName = tostring(TargetResource.displayName),
+    ApplicationId = tostring(TargetResource.id)
+| mv-expand ModifiedProperty = TargetResource.modifiedProperties
+| where tostring(ModifiedProperty.displayName) =~ "ConsentAction.Permissions"
+| extend PermissionsGranted = tostring(ModifiedProperty.newValue)
+| where PermissionsGranted has_any (HighRiskScopes)
+| where array_index_of(ApprovedApplications, tolower(ApplicationName)) == -1
+| project
+    TimeGenerated,
+    ConsentedBy,
+    ClientIP,
+    ApplicationName,
+    ApplicationId,
+    PermissionsGranted,
+    InitiatingApp,
+    CorrelationId,
+    Result
+| order by TimeGenerated desc

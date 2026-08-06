@@ -1,0 +1,47 @@
+// Stage 6 — Critical Entra role membership addition
+// ATT&CK: T1098.003 (Account Manipulation: Additional Cloud Roles)
+// Data source: AuditLogs
+// Any unexpected true positive should be handled as a high-priority incident.
+
+let Lookback = 1d;
+let CriticalRoles = dynamic([
+    "Global Administrator",
+    "Privileged Role Administrator",
+    "Privileged Authentication Administrator",
+    "Application Administrator",
+    "Cloud Application Administrator",
+    "Authentication Administrator"
+]);
+AuditLogs
+| where TimeGenerated >= ago(Lookback)
+| where OperationName has "Add member to role"
+    or OperationName has "Add eligible member to role"
+| extend
+    InitiatedByUser = tolower(tostring(InitiatedBy.user.userPrincipalName)),
+    InitiatedByApp = tostring(InitiatedBy.app.displayName),
+    ClientIP = tostring(InitiatedBy.user.ipAddress),
+    TargetPrincipal = coalesce(
+        tostring(TargetResources[0].userPrincipalName),
+        tostring(TargetResources[0].displayName),
+        tostring(TargetResources[0].id)
+    )
+| mv-expand TargetResource = TargetResources
+| mv-expand ModifiedProperty = TargetResource.modifiedProperties
+| where tostring(ModifiedProperty.displayName) in~ (
+    "Role.DisplayName",
+    "RoleDefinition.DisplayName"
+)
+| extend RoleAddedRaw = tostring(ModifiedProperty.newValue)
+| where RoleAddedRaw has_any (CriticalRoles)
+| extend RoleAdded = replace_string(RoleAddedRaw, '"', "")
+| project
+    TimeGenerated,
+    OperationName,
+    Result,
+    RoleAdded,
+    TargetPrincipal,
+    InitiatedByUser,
+    InitiatedByApp,
+    ClientIP,
+    CorrelationId
+| order by TimeGenerated desc

@@ -1,0 +1,66 @@
+// Stage 5 — Entra account, group and privileged-role discovery
+// ATT&CK: T1069.003 (Permission Groups Discovery: Cloud Groups)
+//         T1087.004 (Account Discovery: Cloud Account)
+// Data sources: MicrosoftGraphActivityLogs, SigninLogs
+// Prerequisite: Microsoft Graph activity logs sent to Log Analytics.
+// Detects bursts of successful Graph GET requests across several sensitive
+// directory endpoints. This is discovery that can precede lateral movement.
+
+let Lookback = 1h;
+let TimeBucket = 15m;
+let RequestThreshold = 20;
+let DistinctTargetThreshold = 3;
+let ApprovedAppIds = dynamic([
+    // Exact lowercase app IDs for approved inventory or IAM tooling
+]);
+let IdentityMap =
+    SigninLogs
+    | where TimeGenerated >= ago(7d)
+    | where isnotempty(UserId)
+    | summarize arg_max(TimeGenerated, UserPrincipalName) by UserId
+    | project UserId, UserPrincipalName = tolower(UserPrincipalName);
+MicrosoftGraphActivityLogs
+| where TimeGenerated >= ago(Lookback)
+| where RequestMethod =~ "GET"
+| where ResponseStatusCode between (200 .. 299)
+| extend
+    RequestUriLower = tolower(RequestUri),
+    AppId = tolower(AppId)
+| extend DiscoveryTarget = case(
+    RequestUriLower contains "/rolemanagement/directory", "RoleManagement",
+    RequestUriLower contains "/directoryroles", "DirectoryRoles",
+    RequestUriLower contains "/serviceprincipals", "ServicePrincipals",
+    RequestUriLower contains "/groups", "Groups",
+    RequestUriLower contains "/users", "Users",
+    ""
+)
+| where isnotempty(DiscoveryTarget)
+| where array_index_of(ApprovedAppIds, AppId) == -1
+| summarize
+    RequestCount = count(),
+    DistinctTargets = dcount(DiscoveryTarget),
+    DiscoveryTargets = make_set(DiscoveryTarget, 10),
+    SampleRequestUris = make_set(RequestUri, 10),
+    SourceIPs = make_set(IPAddress, 10),
+    UserAgents = make_set(UserAgent, 10),
+    FirstRequest = min(TimeGenerated),
+    LastRequest = max(TimeGenerated)
+    by UserId, AppId, ServicePrincipalId, bin(TimeGenerated, TimeBucket)
+| where RequestCount >= RequestThreshold
+| where DistinctTargets >= DistinctTargetThreshold
+| join kind=leftouter IdentityMap on UserId
+| project
+    TimeGenerated,
+    FirstRequest,
+    LastRequest,
+    UserPrincipalName,
+    UserId,
+    AppId,
+    ServicePrincipalId,
+    RequestCount,
+    DistinctTargets,
+    DiscoveryTargets,
+    SourceIPs,
+    UserAgents,
+    SampleRequestUris
+| order by RequestCount desc
