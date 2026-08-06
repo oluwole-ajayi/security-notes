@@ -1,0 +1,137 @@
+{
+  "name": "Identity attack chain — Entra tenant compromise",
+  "versions": {
+    "attack": "18",
+    "navigator": "5.2.0",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "ATT&CK techniques mapped to six identity attack-chain stages. Numbered comments preserve narrative order; the ATT&CK matrix itself is not chronological.",
+  "filters": {
+    "platforms": [
+      "Office Suite",
+      "SaaS",
+      "Identity Provider"
+    ]
+  },
+  "sorting": 0,
+  "layout": {
+    "layout": "side",
+    "aggregateFunction": "average",
+    "showID": true,
+    "showName": true,
+    "showAggregateScores": false,
+    "countUnscored": false,
+    "expandedSubtechniques": "all"
+  },
+  "hideDisabled": false,
+  "techniques": [
+    {
+      "techniqueID": "T1566.002",
+      "color": "#7DB5FF",
+      "comment": "Stage 1 — malicious phishing-link click",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1056.003",
+      "color": "#78DCC7",
+      "comment": "Stage 2 — credential capture through a web portal",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1078.004",
+      "color": "#78DCC7",
+      "comment": "Stage 2 — subsequent use of the cloud account",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1539",
+      "color": "#B7A1FF",
+      "comment": "Stage 3 — steal web session cookie",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1550.004",
+      "color": "#B7A1FF",
+      "comment": "Stage 3 — replay web session cookie",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1671",
+      "color": "#F4C76B",
+      "comment": "Stage 4 — malicious OAuth cloud application integration",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1069.003",
+      "color": "#FF9F80",
+      "comment": "Stage 5 — cloud group and role discovery",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1087.004",
+      "color": "#FF9F80",
+      "comment": "Stage 5 — cloud account discovery",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    },
+    {
+      "techniqueID": "T1098.003",
+      "color": "#FF6B7A",
+      "comment": "Stage 6 — critical Entra role added",
+      "enabled": true,
+      "metadata": [],
+      "links": [],
+      "showSubtechniques": false
+    }
+  ],
+  "gradient": {
+    "colors": [
+      "#7DB5FF",
+      "#FF6B7A"
+    ],
+    "minValue": 0,
+    "maxValue": 100
+  },
+  "legendItems": [
+    { "label": "Stage 1", "color": "#7DB5FF" },
+    { "label": "Stage 2", "color": "#78DCC7" },
+    { "label": "Stage 3", "color": "#B7A1FF" },
+    { "label": "Stage 4", "color": "#F4C76B" },
+    { "label": "Stage 5", "color": "#FF9F80" },
+    { "label": "Stage 6", "color": "#FF6B7A" }
+  ],
+  "metadata": [
+    { "name": "Author", "value": "Oluwole Ajayi" },
+    { "name": "Scope", "value": "Microsoft Entra ID / Microsoft 365 identity attack chain" }
+  ],
+  "links": [],
+  "showTacticRowBackground": false,
+  "tacticRowBackground": "#dddddd",
+  "selectTechniquesAcrossTactics": true,
+  "selectSubtechniquesWithParent": false,
+  "selectVisibleTechniques": false
+}

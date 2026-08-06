@@ -1,0 +1,22 @@
+// Stage 1 — Malicious phishing-link click
+// ATT&CK: T1566.002 (Phishing: Spearphishing Link)
+// Data source: Microsoft Defender XDR UrlClickEvents
+// Prerequisite: Microsoft Defender for Office 365 Safe Links telemetry
+
+let Lookback = 1d;
+UrlClickEvents
+| where Timestamp >= ago(Lookback)
+| where isnotempty(AccountUpn)
+| where ThreatTypes has_any ("Phish", "Malware")
+| extend UserPrincipalName = tolower(AccountUpn)
+| project
+    TimeGenerated = Timestamp,
+    UserPrincipalName,
+    Url,
+    ThreatTypes,
+    ActionType,
+    IsClickedThrough,
+    Workload,
+    NetworkMessageId,
+    IPAddress
+| order by TimeGenerated desc
