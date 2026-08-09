@@ -1,0 +1,2 @@
+bucket_name = "replace-with-a-globally-unique-lab-bucket"
+aws_region  = "eu-west-2"

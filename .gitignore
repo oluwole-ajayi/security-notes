@@ -4,3 +4,11 @@ iac/hardened-storage-account/evidence/
 
 # Private Conditional Access lab evidence
 /scripts/audit-ca-policy-baseline/evidence/
+
+# Terraform local working files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
