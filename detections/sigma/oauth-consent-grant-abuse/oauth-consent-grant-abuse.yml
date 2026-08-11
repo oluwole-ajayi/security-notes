@@ -1,0 +1,40 @@
+title: OAuth Consent Grant With Offline Access And Sensitive Scopes
+id: 9b53da24-014c-492b-adaf-2dcfa36fbbee
+status: test
+description: >
+  Detects a successful Microsoft Entra ID application-consent event where
+  offline_access is granted together with a sensitive delegated permission.
+  This combination can allow an application to retain access and interact
+  with mail, contacts, files, notes, people, mailbox settings or directory
+  data on behalf of the consenting user.
+references:
+  - https://learn.microsoft.com/en-us/security/operations/incident-response-playbook-app-consent
+  - https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
+  - https://attack.mitre.org/techniques/T1528/
+author: Oluwole Ajayi
+date: 2026-08-11
+tags:
+  - attack.credential-access
+  - attack.t1528
+logsource:
+  product: azure
+  service: auditlogs
+detection:
+  selection_operation:
+    OperationName: Consent to application
+    Result:
+      - success
+      - Success
+  selection_offline_access:
+    ConsentAction.Permissions|re: '(?i)(?:^|\s)offline_access(?:\s|,|\]|$)'
+  selection_sensitive_scope:
+    ConsentAction.Permissions|re: '(?i)(?:^|\s)(?:mail\.(?:read|readwrite|send)(?:\.shared)?|mailboxsettings\.(?:read|readwrite)|contacts\.(?:read|readwrite)(?:\.shared)?|people\.read(?:\.all)?|files\.(?:read|readwrite)(?:\.all)?|notes\.(?:create|read|readwrite)(?:\.all)?|directory\.accessasuser\.all|user_impersonation)(?:\s|,|\]|$)'
+  condition: all of selection_*
+fields:
+  - InitiatedBy
+  - TargetResources
+  - CorrelationId
+falsepositives:
+  - Approved applications that legitimately require long-lived access to sensitive user data
+  - Business applications using delegated mailbox, file, contact or directory permissions
+level: medium
