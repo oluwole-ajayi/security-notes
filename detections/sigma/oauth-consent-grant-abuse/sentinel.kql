@@ -1,0 +1,99 @@
+// OAuth consent grant with offline access and sensitive scopes
+// Microsoft Sentinel / Log Analytics implementation
+
+let Lookback = 1h;
+
+// Format each entry as:
+// "<client-id>|<lowercase-sensitive-scope>"
+let AllowedAppScopePairs = dynamic([]);
+
+AuditLogs
+| where TimeGenerated > ago(Lookback)
+| where OperationName =~ "Consent to application"
+| where Result =~ "success"
+| mv-expand Target = TargetResources
+| mv-expand ModifiedProperty = Target.modifiedProperties
+| where tostring(ModifiedProperty.displayName) ==
+    "ConsentAction.Permissions"
+| extend PermissionGrant =
+    tostring(ModifiedProperty.newValue)
+| extend
+    ClientId = tolower(
+        extract(
+            @"(?i)ClientId:\s*([0-9a-f-]{36})",
+            1,
+            PermissionGrant
+        )
+    ),
+    ConsentType = trim(
+        @"\s+",
+        extract(
+            @"(?i)ConsentType:\s*([^,\]]+)",
+            1,
+            PermissionGrant
+        )
+    ),
+    ScopeText = extract(
+        @"(?i)Scope:\s+([^,\]]+)",
+        1,
+        PermissionGrant
+    )
+| where isnotempty(ScopeText)
+| extend NormalizedScopeText = replace_regex(
+    tolower(trim(@"\s+", ScopeText)),
+    @"\s+",
+    " "
+)
+| extend GrantedScopes =
+    split(NormalizedScopeText, " ")
+| where set_has_element(
+    GrantedScopes,
+    "offline_access"
+)
+| mv-apply GrantedScope = GrantedScopes to typeof(string) on (
+    where
+        (
+            GrantedScope startswith "mail."
+            and not(
+                GrantedScope startswith "mail.readbasic"
+            )
+        )
+        or GrantedScope startswith "contacts."
+        or GrantedScope startswith "mailboxsettings."
+        or GrantedScope startswith "people."
+        or GrantedScope startswith "files."
+        or GrantedScope startswith "notes."
+        or GrantedScope == "directory.accessasuser.all"
+        or GrantedScope == "user_impersonation"
+    | summarize CandidateSensitiveScopes =
+        make_set(GrantedScope)
+)
+| where array_length(CandidateSensitiveScopes) > 0
+| mv-apply SensitiveScope =
+    CandidateSensitiveScopes to typeof(string) on (
+    extend AppScopePair =
+        strcat(ClientId, "|", SensitiveScope)
+    | where array_index_of(
+        AllowedAppScopePairs,
+        AppScopePair
+    ) == -1
+    | summarize MatchedSensitiveScopes =
+        make_set(SensitiveScope)
+)
+| where array_length(MatchedSensitiveScopes) > 0
+| extend InitiatingIdentity = coalesce(
+    tostring(InitiatedBy.user.userPrincipalName),
+    tostring(InitiatedBy.app.displayName)
+)
+| project
+    TimeGenerated,
+    OperationName,
+    Result,
+    TargetApp = tostring(Target.displayName),
+    ClientId,
+    ConsentType,
+    InitiatingIdentity,
+    GrantedScopes,
+    MatchedSensitiveScopes,
+    CorrelationId
+| order by TimeGenerated desc
