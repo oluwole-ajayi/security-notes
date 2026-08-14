@@ -1,0 +1,127 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Identity Risk Dashboard\n\nA Microsoft Sentinel view of sign-in outcomes, potential repeated MFA failures, sensitive identity administration and OAuth consent activity.\n\n> Repeated authentication failures are investigation indicators and do not, by themselves, prove an MFA-fatigue attack."
+      },
+      "name": "text - 2"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "c82f4d6a-8a91-4b0d-91f1-2d98f3f32642",
+            "version": "KqlParameterItem/1.0",
+            "name": "Workspace",
+            "type": 5,
+            "isRequired": true,
+            "label": "Workspace",
+            "description": "Select the Log Analytics workspace containing Entra SigninLogs and AuditLogs.",
+            "value": "",
+            "typeSettings": {
+              "resourceTypeFilter": {
+                "microsoft.operationalinsights/workspaces": true
+              },
+              "additionalResourceOptions": []
+            }
+          },
+          {
+            "id": "2a1d02ef-fc36-441c-a2a7-0cd6de8b7107",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "key": "2a1d02ef-fc36-441c-a2a7-0cd6de8b7107",
+            "label": "Time range",
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 2592000000
+                }
+              ],
+              "allowCustom": false
+            },
+            "description": "Select the identity investigation period.",
+            "value": {
+              "durationMs": 2592000000
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters - 1"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where TimeGenerated {TimeRange}\n| extend\n    Outcome = iff(ResultType == \"0\", \"Successful\", \"Unsuccessful\"),\n    Reason = case(\n        ResultType == \"0\", \"Successful sign-in\",\n        ResultType == \"65001\", \"Application consent required\",\n        ResultType == \"50097\", \"Device authentication required\",\n        ResultType == \"50140\", \"Keep me signed in interruption\",\n        ResultType == \"500121\", \"MFA authentication failed\",\n        isempty(ResultDescription), strcat(\"Other result: \", ResultType),\n        ResultDescription\n    )\n| summarize SignIns = count() by Reason, Outcome\n| project Reason, SignIns, Outcome\n| order by SignIns desc",
+        "size": 0,
+        "title": "Sign-in outcomes and access-control interruptions",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "barchart"
+      },
+      "name": "query - 2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where TimeGenerated {TimeRange}\n| where ResultType == \"500121\"\n| summarize\n    FailureEvents = dcount(CorrelationId)\n    by\n        UserPrincipalName,\n        IPAddress,\n        bin(TimeGenerated, 5m)\n| where FailureEvents >= 3\n| summarize PotentialPatterns = count()",
+        "size": 1,
+        "title": "Potential repeated MFA-failure patterns",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "stat"
+      },
+      "name": "query - 3"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "AuditLogs\n| where TimeGenerated {TimeRange}\n| where Result =~ \"success\"\n| extend TargetProperties = tostring(TargetResources)\n| where OperationName in~ (\n    \"Add member to role\",\n    \"Remove member from role\",\n    \"Add eligible member to role\",\n    \"Remove eligible member from role\",\n    \"Add app role assignment grant to user\",\n    \"Remove app role assignment grant from user\",\n    \"Reset user password\",\n    \"Delete user\",\n    \"User registered security info\",\n    \"Admin registered security info\",\n    \"Delete user authentication method\",\n    \"Add Conditional Access policy\",\n    \"Update Conditional Access policy\",\n    \"Delete Conditional Access policy\"\n)\nor (\n    OperationName =~ \"Update user\"\n    and TargetProperties has_any (\n        \"AccountEnabled\",\n        \"StrongAuthentication\",\n        \"UserPrincipalName\",\n        \"PasswordProfile\"\n    )\n)\n| extend Initiator = coalesce(\n    tostring(InitiatedBy.user.userPrincipalName),\n    tostring(InitiatedBy.app.displayName),\n    \"Unknown\"\n)\n| summarize\n    Events = count(),\n    DistinctInitiators = dcount(Initiator),\n    LatestEvent = max(TimeGenerated)\n    by OperationName\n| order by Events desc",
+        "size": 0,
+        "title": "Sensitive identity administration",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table"
+      },
+      "name": "query - 4"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "AuditLogs\n| where TimeGenerated {TimeRange}\n| where OperationName =~ \"Consent to application\"\n| where Result =~ \"success\"\n| mv-expand TargetResource = TargetResources\n| mv-expand Property = TargetResource.modifiedProperties\n| where tostring(Property.displayName) ==\n    \"ConsentAction.Permissions\"\n| extend\n    Application = tostring(TargetResource.displayName),\n    PermissionChange = tostring(Property.newValue)\n| extend GrantedScopes = extract(\n    @\"(?i)Scope:\\s+([^,\\]]+)\",\n    1,\n    PermissionChange\n)\n| summarize\n    ConsentEvents = dcount(CorrelationId),\n    LatestEvent = max(TimeGenerated),\n    GrantedScopes = make_set(GrantedScopes, 10)\n    by Application\n| order by ConsentEvents desc",
+        "size": 0,
+        "title": "OAuth consent activity",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table"
+      },
+      "name": "query - 5"
+    }
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
