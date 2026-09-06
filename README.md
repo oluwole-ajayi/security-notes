@@ -29,9 +29,19 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Detection-rule PRs are especially welc
 
 ## About me
 
-I'm Oluwole Isaac Ajayi - a UK-based Cybersecurity Engineer with over nine years of security practitioner experience. MSc in Applied Cybersecurity (Distinction) from the University of South Wales; my dissertation researched LLM-based detection of injection-class vulnerabilities. Certifications include CompTIA Security+, CySA+, CSAP, Microsoft SC-900, AZ-500, and SC-100, and AZ-900, with CISSP in progress. Currently a Cloud Security Engineer at [ZDL Systems].
+I’m Oluwole Isaac Ajayi, a UK-based Cybersecurity Engineer and Software Compliance Analyst specialising in cloud security, identity, detection engineering, endpoint security and compliance.
 
-Outside of employment I run two ventures:
+I currently work at the Victoria and Albert Museum (V&A), supporting enterprise software governance, endpoint compliance, vulnerability remediation and patch assurance. I am also the Founder of Techlync Solutions and the creator of VeriLync, a security SaaS product in development for lean security teams.
+
+This repository documents practical and reproducible security projects across Microsoft Sentinel, Microsoft Entra ID, Azure, AWS, infrastructure as code and detection engineering. Each project includes implementation guidance, validation evidence, and clearly stated limitations.
+
+I hold an MSc in Applied Cybersecurity with Distinction from the University of South Wales. My dissertation investigated LLM-assisted detection of injection-class vulnerabilities.
+
+Certifications: Microsoft Certified: Security Operations Analyst Associate (SC-200), CompTIA Security+, CySA+, and CSAP.
+
+Currently pursuing: Microsoft SC-100 and CISSP.
+
+Outside of employment, I run two ventures:
 
 - **[Techlync Solutions](https://techlynsolutions.co.uk/)** - a UK-registered cybersecurity practice (Companies House 16594063) serving SMEs across professional services, financial services, healthcare, technology, retail, and public sector supply chain.
 - **[VeriLync](https://verilync.com/)** - an application security platform under development, commercialising my MSc research on LLM-augmented injection detection.
